@@ -42,23 +42,23 @@ class LSTM(nn.Module):
 
 
 class Simple_LSTM(nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_size):
         super().__init__()
         self.LSTM = nn.LSTM(
             input_size=1,
-            hidden_size=5,
+            hidden_size=hidden_size,
             num_layers=1,
             batch_first=True,
             bidirectional=True
         )
-        self.fc = nn.Linear(5, 1)
+        self.fc = nn.Linear(hidden_size*2, 1)
 
     def forward(self, inputs):
         # (N,L,D) batch,时序长度,特征数量
         output, (hn, cn) = self.LSTM(inputs)  # (N,L,D)
         # print(hn.shape)
-        # tensor = self.fc(torch.sigmoid(output[:, -1, :])) bi-lstm
-        tensor = self.fc(torch.sigmoid(hn[-1]))
+        tensor = self.fc(torch.sigmoid(output[:, -1, :])) # bi-lstm
+        # tensor = self.fc(torch.sigmoid(hn[-1]))
         # return tensor.squeeze()
         return tensor.reshape(-1)
 

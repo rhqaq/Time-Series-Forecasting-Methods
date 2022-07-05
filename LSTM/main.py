@@ -61,12 +61,6 @@ if __name__ == '__main__':
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     torch.backends.cudnn.deterministic = True
-    net = Simple_LSTM()
-    net = net.to(dev)
-
-    loss_func = nn.MSELoss()
-    opti = optim.Adam(net.parameters(), lr=0.01,weight_decay=0.0001)
-    epoch_num = 1000
 
     # <准备数据
     area = 'sui'
@@ -92,101 +86,127 @@ if __name__ == '__main__':
     # 	break
     data_all = df.loc[start:]['average_score'].values
     data_dif = difference(data_all).values
+
+    params = {}
+    best_mse_of_all = float("inf")
     # 准备数据>
-    train_data,train_label,valid_data,valid_label,test_data,test_label = sentiment_series(data_dif,3)
-    print(train_data.shape)
-    print(valid_data.shape)
-    print(test_data.shape)
-    print(train_label.shape)
-    print(valid_label.shape)
-    print(test_label.shape)
-    train_data_loader = DataLoader(TensorDataset(train_data, train_label), batch_size=1, shuffle=False)
-    valid_data_loader = DataLoader(TensorDataset(valid_data, valid_label), batch_size=512, shuffle=False)
-    test_data_loader = DataLoader(TensorDataset(test_data, test_label), batch_size=512, shuffle=False)
-    best_mse = float("inf")
+    for hidden_size in [5,10,20,40,80]:
+        for lr in [0.1,0.01,0.001,0.0001]:
+            for time_step in [2,3,4,5,6,7]:
+                for batch_size in tqdm([1,2,4,8]):
+                    net = Simple_LSTM(hidden_size)
+                    net = net.to(dev)
+
+                    loss_func = nn.MSELoss()
+                    opti = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
+                    epoch_num = 1000
+
+                    train_data,train_label,valid_data,valid_label,test_data,test_label = sentiment_series(data_dif,time_step)
+                    # print(train_data.shape)
+                    # print(valid_data.shape)
+                    # print(test_data.shape)
+                    # print(train_label.shape)
+                    # print(valid_label.shape)
+                    # print(test_label.shape)
+                    train_data_loader = DataLoader(TensorDataset(train_data, train_label), batch_size=batch_size, shuffle=False)
+                    valid_data_loader = DataLoader(TensorDataset(valid_data, valid_label), batch_size=512, shuffle=False)
+                    test_data_loader = DataLoader(TensorDataset(test_data, test_label), batch_size=512, shuffle=False)
+                    best_mse = float("inf")
 
 
-    for i in range(epoch_num):
-        net.train()
-        loss_ = AverageMeter()
-        acc_ = AverageMeter()
-        for data, label in train_data_loader:
-            data, label = data.to(dev), label.to(dev)
-            preds = net(data)
-            # print(preds.size())
-            # print(label.size())
-            loss = loss_func(preds, label)
-            # weight = net.fc.weight.squeeze()
-            # loss += c * torch.sum(torch.abs(weight))
-            # print(loss.size())
-            opti.zero_grad()
-            loss.backward()
-            opti.step()
-            loss_.update(loss.item())
+                    for i in range(epoch_num):
+                        net.train()
+                        loss_ = AverageMeter()
+                        acc_ = AverageMeter()
+                        for data, label in train_data_loader:
+                            data, label = data.to(dev), label.to(dev)
+                            preds = net(data)
+                            # print(preds.size())
+                            # print(label.size())
+                            loss = loss_func(preds, label)
+                            # weight = net.fc.weight.squeeze()
+                            # loss += c * torch.sum(torch.abs(weight))
+                            # print(loss.size())
+                            opti.zero_grad()
+                            loss.backward()
+                            opti.step()
+                            loss_.update(loss.item())
 
-        print("Epoch: %d, loss: %1.5f" % (i, loss_.sum))
+                        # print("Epoch: %d, loss: %1.5f" % (i, loss_.sum))
 
 
 
-        net.eval()  # eval下用验证集
-        with torch.no_grad():
-            label_list, preds_list = [], []
-            for data, label in valid_data_loader:
+                        net.eval()  # eval下用验证集
+                        with torch.no_grad():
+                            label_list, preds_list = [], []
+                            for data, label in valid_data_loader:
 
-                data, label = data.to(dev), label.to(dev)
-                preds = net(data)
-                label_list += label.cuda().data.cpu().numpy().tolist()
-                preds_list += preds.cuda().data.cpu().numpy().tolist()
-            a_s = mean_squared_error(label_list, preds_list)
+                                data, label = data.to(dev), label.to(dev)
+                                preds = net(data)
+                                label_list += label.cuda().data.cpu().numpy().tolist()
+                                preds_list += preds.cuda().data.cpu().numpy().tolist()
+                            a_s = mean_squared_error(label_list, preds_list)
 
-        # print(a_s)
-        if a_s < best_mse:
-            best_mse = a_s
-            best_epoch = i + 1  # 按照准确率作为最好的epoch
-            torch.save(net.state_dict(), os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(int(i + 1))))
+                        # print(a_s)
+                        if a_s < best_mse:
+                            best_mse = a_s
+                            best_epoch = i + 1  # 按照准确率作为最好的epoch
+                            # torch.save(net.state_dict(), os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(int(i + 1))))
 
-        if i + 1 >= best_epoch + 100:
-            print('Finish after epoch {}'.format(i + 1))
-            best_file_path = os.path.join('./savedmodel', '{}-best.ckpt'.format('mlp43'))
-            ori_path = os.path.join('./savedmodel', 'model-{}.ckpt'.format(best_epoch))
-            os.system('mv {} {}'.format(ori_path, best_file_path))  # 命令行将best移入best目录
-            os.system('rm -rf {}'.format(os.path.join('./savedmodel', 'model-*')))  # 一般模型清空
-            break
-    net.load_state_dict(
-        torch.load(os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(best_epoch))))
+                        if i + 1 >= best_epoch + 30:
+                            # print('Finish after epoch {}'.format(i + 1))
+                            # best_file_path = os.path.join('./savedmodel', '{}-best.ckpt'.format('mlp43'))
+                            # ori_path = os.path.join('./savedmodel', 'model-{}.ckpt'.format(best_epoch))
+                            # os.system('mv {} {}'.format(ori_path, best_file_path))  # 命令行将best移入best目录
+                            # os.system('rm -rf {}'.format(os.path.join('./savedmodel', 'model-*')))  # 一般模型清空
+                            break
 
-    net.eval()
-    mape_list = []
-    with torch.no_grad():
-        label_list, preds_list, prob = [], [], []
-        for data, label in test_data_loader:
-            data, label = data.to(dev), label.to(dev)
-            preds = net(data).squeeze()
-            print(label)
-            label_list += label.cuda().data.cpu().numpy().tolist()
-            preds_list += preds.cuda().data.cpu().numpy().tolist()
-            # mape_list.append((abs((label_list - preds_list) / label_list)))
-    print(preds_list)
-    print(label_list)
-    mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
-    print('mape:{}'.format(np.mean(mape_list)))
-    print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
-    print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
+                    if best_mse<best_mse_of_all:
+                        best_mse_of_all=best_mse
+                        params['hidden_size'] = hidden_size
+                        params['lr'] = lr
+                        params['time_step'] = time_step
+                        params['batch_size'] = batch_size
+                        print(params)
 
-    # pre1_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
-    # print('mape:{}'.format(np.mean(mape_list)))
-    # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
-    # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
+    print('best params')
+    print(params)
+    # test
+    # net.load_state_dict(
+    #     torch.load(os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(best_epoch))))
     #
+    # net.eval()
+    # mape_list = []
+    # with torch.no_grad():
+    #     label_list, preds_list, prob = [], [], []
+    #     for data, label in test_data_loader:
+    #         data, label = data.to(dev), label.to(dev)
+    #         preds = net(data).squeeze()
+    #         print(label)
+    #         label_list += label.cuda().data.cpu().numpy().tolist()
+    #         preds_list += preds.cuda().data.cpu().numpy().tolist()
+    #         # mape_list.append((abs((label_list - preds_list) / label_list)))
+    # print(preds_list)
+    # print(label_list)
     # mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
     # print('mape:{}'.format(np.mean(mape_list)))
     # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
     # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
-
-    # print(data)
-    # print(label_list)
-    label_list = inverse_difference(data_all,label_list)
-    preds_list = inverse_difference(data_all,preds_list)
-    plt.plot(label_list)
-    plt.plot(preds_list)
-    plt.show()
+    #
+    # # pre1_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
+    # # print('mape:{}'.format(np.mean(mape_list)))
+    # # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
+    # # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
+    # #
+    # # mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
+    # # print('mape:{}'.format(np.mean(mape_list)))
+    # # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
+    # # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
+    #
+    # # print(data)
+    # # print(label_list)
+    # label_list = inverse_difference(data_all,label_list)
+    # preds_list = inverse_difference(data_all,preds_list)
+    # plt.plot(label_list)
+    # plt.plot(preds_list)
+    # plt.show()
