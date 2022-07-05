@@ -112,7 +112,7 @@ if __name__ == '__main__':
 	# end = start+100
 	# data = df.loc[start:end]['down_v6_average'].values
 	# data = df['down_v4_average'].values
-	area = 'sui'
+	area = 'su'
 	df = pd.read_csv(r'D:\更新的代码\data\{}普通用户情感分析.csv'.format(area))
 	print(df.head)
 	flage = False
@@ -164,6 +164,7 @@ if __name__ == '__main__':
 	# for cfg, error in scores[:5]: # 取出前5个最优的参数组合及对应的模型得分
 	# 	print(cfg, error)
 	# cfg, error = scores[0]
+	# order = cfg[0]
 	predictions_train = []
 	predictions_v = []
 	predictions_t = []
@@ -175,9 +176,9 @@ if __name__ == '__main__':
 	# print(history)
 	# history = history[0:24]
 	# print(history)
-	order, sorder, trend = [(2, 1, 1), (0, 0, 0, 7), 'ct']
+	# order, sorder, trend = [(2, 1, 1), (0, 0, 0, 7), 'ct']
 
-	order = (3,2,4)
+	order = (3,0,2)
 	model = ARIMA(history,order=order)
 	model_fit = model.fit()
 
@@ -214,17 +215,19 @@ if __name__ == '__main__':
 	err = [abs(predictions_t[i]-data[test_slice+i])/data[test_slice+i] for i in range(len(predictions_t))]
 	err1 = [abs(data[test_slice + i-1] - data[test_slice + i]) / data[test_slice + i] for i in range(len(predictions_t))]
 	err2 = [abs(data[test_slice + i - 7] - data[test_slice + i]) / data[test_slice + i] for i in range(len(predictions_t))]
-	print(np.mean(err1))
-	print(np.mean(err2))
-	print(np.mean(err))
 
+	# print(np.mean(err2))
+	print('mape')
+	print(np.mean(err))
+	print(np.mean(err1))
+	print('mse')
 	print(mean_squared_error(data[test_slice:],predictions_t))
 	print(mean_squared_error(data[test_slice:], data[test_slice-1:-1]))
-	print(mean_squared_error(data[test_slice:], data[test_slice - 7:-7]))
-
+	# print(mean_squared_error(data[test_slice:], data[test_slice - 7:-7]))
+	print('mae')
 	print(mean_absolute_error(data[test_slice:],predictions_t))
 	print(mean_absolute_error(data[test_slice:], data[test_slice-1:-1]))
-	print(mean_absolute_error(data[test_slice:], data[test_slice - 7:-7]))
+	# print(mean_absolute_error(data[test_slice:], data[test_slice - 7:-7]))
 
 	print(err)
 	# plt.xlabel('The Absolute Value of Relative Error', fontsize=8, alpha=1)

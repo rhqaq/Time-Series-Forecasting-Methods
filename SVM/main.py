@@ -54,7 +54,7 @@ if __name__ == '__main__':
     os.environ['PYTHONHASHSEED'] = str(seed_value)  # 为了禁止hash随机化，使得实验可复现。
 
     # <准备数据
-    area = 'sui'
+    area = 'su'
     df = pd.read_csv(r'D:\更新的代码\data\{}普通用户情感分析.csv'.format(area))
     flage = False
     for index, rows in df.iterrows():
