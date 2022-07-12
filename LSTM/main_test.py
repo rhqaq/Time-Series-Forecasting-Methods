@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import random
 from torch import optim
 from Models import LSTM, MLP,Simple_LSTM,TimeLSTM
-from sklearn.metrics import mean_squared_error , mean_absolute_error
+from sklearn.metrics import mean_squared_error , mean_absolute_error, mean_absolute_percentage_error
 import torch.nn as nn
 import pandas as pd
 from Getdata import sentiment_series,variable_series
@@ -173,7 +173,7 @@ if __name__ == '__main__':
         if a_s < best_mse:
             best_mse = a_s
             best_epoch = i + 1  # 按照准确率作为最好的epoch
-            torch.save(net.state_dict(), os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(int(i + 1))))
+            torch.save(net.state_dict(), os.path.join('./savemodel', 'model{}.ckpt'.format(int(i + 1))))
 
         if i + 1 >= best_epoch + 30:
             print('Finish after epoch {}'.format(i + 1))
@@ -187,7 +187,7 @@ if __name__ == '__main__':
 
 
     net.load_state_dict(
-        torch.load(os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(best_epoch))))
+        torch.load(os.path.join('./savemodel', 'model{}.ckpt'.format(best_epoch))))
 
     # net.train()
     # for data, label in valid_data_loader:
@@ -243,10 +243,13 @@ if __name__ == '__main__':
     # plt.plot(preds_list)
     # label_list = [inverse_difference(data_all,label_list[i],len(label_list) + 1 - i) for i in range(len(label_list))]
     # preds_list = [inverse_difference(data_all,preds_list[i],len(preds_list) + 1 - i) for i in range(len(preds_list))]
+
+
     mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
     print('mape:{}'.format(np.mean(mape_list)))
+    print('mape:{}'.format(mean_absolute_percentage_error(label_list,preds_list)))
     print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
     print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
-    plt.plot(label_list)
-    plt.plot(preds_list)
-    plt.show()
+    # plt.plot(label_list)
+    # plt.plot(preds_list)
+    # plt.show()

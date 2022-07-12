@@ -3,6 +3,11 @@ import numpy as np
 import torch
 from sklearn.preprocessing import MinMaxScaler
 
+def del_tensor_ele(arr,index):
+    arr1 = arr[:,:,0:index]
+    arr2 = arr[:,:,index+1:]
+    return torch.cat((arr1,arr2),dim=2)
+
 #定义create_inout_sequences函数，接收原始输入数据，并返回一个元组列表。
 def create_inout_sequences(input_data, tw):
     data_seq = 0
