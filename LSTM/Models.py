@@ -42,26 +42,70 @@ class LSTM(nn.Module):
 
 
 class Simple_LSTM(nn.Module):
-    def __init__(self, hidden_size):
+    def __init__(self, input_size,hidden_size):
         super().__init__()
         self.LSTM = nn.LSTM(
-            input_size=1,
+            input_size=input_size,
             hidden_size=hidden_size,
             num_layers=1,
             batch_first=True,
-            bidirectional=True
+            bidirectional=False
         )
-        self.fc = nn.Linear(hidden_size*2, 1)
+        self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, inputs):
         # (N,L,D) batch,时序长度,特征数量
         output, (hn, cn) = self.LSTM(inputs)  # (N,L,D)
         # print(hn.shape)
-        tensor = self.fc(torch.sigmoid(output[:, -1, :])) # bi-lstm
-        # tensor = self.fc(torch.sigmoid(hn[-1]))
+        # tensor = self.fc(torch.sigmoid(output[:, -1, :])) # bi-lstm
+        tensor = self.fc(torch.sigmoid(hn[-1]))
         # return tensor.squeeze()
         return tensor.reshape(-1)
 
+
+class TimeLSTM(nn.Module):
+    def __init__(self, input_size, hidden_size, output_size, cuda_flag=False):
+        # assumes that batch_first is always true
+        super(TimeLSTM, self).__init__()
+        self.hidden_size = hidden_size
+        self.cuda_flag = cuda_flag
+        self.W_all = nn.Linear(hidden_size, hidden_size * 4)
+        self.U_all = nn.Linear(input_size, hidden_size * 4)
+        self.W_d = nn.Linear(hidden_size, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size)  # 和LSTM一样最后加了个全连接层
+    #         self.attention = Attention(hidden_size, hidden_size)
+
+    def forward(self, inputs, time_interval):
+        # inputs: [batch, timesteps, input_size]
+        # time_interval: [batch, timesteps]
+        # h: [batch, hidden_size]
+        # c: [batch, hidden_size]
+        b, seq, embed = inputs.size()
+        h = torch.zeros(b, self.hidden_size, requires_grad=False)
+        c = torch.zeros(b, self.hidden_size, requires_grad=False)
+        if self.cuda_flag:
+            h = h.cuda()
+            c = c.cuda()
+        outputs = []
+        for s in range(seq):
+            c_s1 = torch.tanh(self.W_d(c))
+            c_s2 = c_s1 * time_interval[:, s:s + 1].expand_as(c_s1)
+            c_l = c - c_s1
+            c_adj = c_l + c_s2
+            outs = self.W_all(h) + self.U_all(inputs[:, s])
+            f, i, o, c_tmp = torch.chunk(outs, 4, 1)
+            f = torch.sigmoid(f)
+            i = torch.sigmoid(i)
+            o = torch.sigmoid(o)
+            c_tmp = torch.sigmoid(c_tmp)
+            c = f * c_adj + i * c_tmp
+            h = o * torch.tanh(c)
+            outputs.append(self.out(h))
+
+        #         output = outputs[-1]  #   (batch, hidden_size)
+        output = torch.stack(outputs, -1).sum(-1).reshape(-1)
+
+        return output
 
 class MLP(nn.Module):
     def __init__(self, input_size, num_classes):

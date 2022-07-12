@@ -9,11 +9,11 @@ from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 import random
 from torch import optim
-from Models import LSTM, MLP,Simple_LSTM
+from Models import LSTM, MLP,Simple_LSTM,TimeLSTM
 from sklearn.metrics import mean_squared_error , mean_absolute_error
 import torch.nn as nn
 import pandas as pd
-from Getdata import sentiment_series
+from Getdata import sentiment_series,variable_series
 import matplotlib.pyplot as plt
 
 class AverageMeter(object):
@@ -48,6 +48,12 @@ def inverse_difference(history, yhat, interval=1):  # 历史数据，预测数�
     return yhat + history[-interval]
 
 
+
+def del_tensor_ele(arr,index):
+    arr1 = arr[:,:,0:index]
+    arr2 = arr[:,:,index+1:]
+    return torch.cat((arr1,arr2),dim=2)
+
 if __name__ == '__main__':
     seed_value = 2022
     np.random.seed(seed_value)
@@ -79,30 +85,37 @@ if __name__ == '__main__':
         if flage:
             if rows['total_sum'] <=5:
                 rows['average_score'] = df.loc[index-1]['average_score']
-            print(rows['Unnamed: 0'])
+            # print(rows['Unnamed: 0'])
 
     # if rows['Unnamed: 0'] == '2021-01-22 08:00:00':
     # 	end = index
     # 	break
-    data_all = df.loc[start:]['average_score'].values
-    data_dif = difference(data_all).values
+    # data_all = df.loc[start:]['average_score'].values
+    # data_dif = difference(data_all).values
 
     params = {}
+
     best_mse_of_all = float("inf")
     # 准备数据>
-    hidden_size=20
-    lr=0.1
-    time_step=4
+    hidden_size=50
+    lr=0.001
+    time_step=7
     batch_size=8
-
-    net = Simple_LSTM(hidden_size)
+    need_timeinter = True
+    start_time = '2021-03-01'
+    end_time = '2021-11-01'
+    train_data,train_label,valid_data,valid_label,test_data,test_label = variable_series(time_step, area,start_time,end_time,need_timeinter)
+    input_size = train_data.shape[2]-1
+    # net = Simple_LSTM(input_size,hidden_size)
+    net = TimeLSTM(input_size, hidden_size, 1, True)
     net = net.to(dev)
 
     loss_func = nn.MSELoss()
     opti = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
     epoch_num = 1000
 
-    train_data,train_label,valid_data,valid_label,test_data,test_label = sentiment_series(data_dif,time_step)
+    # train_data,train_label,valid_data,valid_label,test_data,test_label = sentiment_series(data_dif,time_step)
+
     # print(train_data.shape)
     # print(valid_data.shape)
     # print(test_data.shape)
@@ -121,7 +134,11 @@ if __name__ == '__main__':
         acc_ = AverageMeter()
         for data, label in train_data_loader:
             data, label = data.to(dev), label.to(dev)
-            preds = net(data)
+            time_interval = data[:,:,13]
+            data = del_tensor_ele(data,13)
+
+            # preds = net(data)
+            preds = net(data,time_interval) # T-lstm
             # print(preds.size())
             # print(label.size())
             loss = loss_func(preds, label)
@@ -141,9 +158,13 @@ if __name__ == '__main__':
         with torch.no_grad():
             label_list, preds_list = [], []
             for data, label in valid_data_loader:
-
                 data, label = data.to(dev), label.to(dev)
-                preds = net(data)
+                time_interval = data[:, :, 13]
+                data = del_tensor_ele(data, 13)
+
+                # preds = net(data)
+                # preds = net(data)
+                preds = net(data, time_interval)  # T-lstm
                 label_list += label.cuda().data.cpu().numpy().tolist()
                 preds_list += preds.cuda().data.cpu().numpy().tolist()
             a_s = mean_squared_error(label_list, preds_list)
@@ -189,8 +210,13 @@ if __name__ == '__main__':
         label_list, preds_list, prob = [], [], []
         for data, label in test_data_loader:
             data, label = data.to(dev), label.to(dev)
-            preds = net(data).squeeze()
-            print(label)
+            time_interval = data[:,:,13]
+            data = del_tensor_ele(data,13)
+
+            # preds = net(data).squeeze()
+
+            preds = net(data,time_interval).squeeze() # T-lstm
+            # print(label)
             label_list += label.cuda().data.cpu().numpy().tolist()
             preds_list += preds.cuda().data.cpu().numpy().tolist()
             # mape_list.append((abs((label_list - preds_list) / label_list)))
@@ -213,10 +239,10 @@ if __name__ == '__main__':
     #
     # # print(data)
     # # print(label_list)
-    plt.plot(label_list)
-    plt.plot(preds_list)
-    label_list = [inverse_difference(data_all,label_list[i],len(label_list) + 1 - i) for i in range(len(label_list))]
-    preds_list = [inverse_difference(data_all,preds_list[i],len(preds_list) + 1 - i) for i in range(len(preds_list))]
+    # plt.plot(label_list)
+    # plt.plot(preds_list)
+    # label_list = [inverse_difference(data_all,label_list[i],len(label_list) + 1 - i) for i in range(len(label_list))]
+    # preds_list = [inverse_difference(data_all,preds_list[i],len(preds_list) + 1 - i) for i in range(len(preds_list))]
     mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
     print('mape:{}'.format(np.mean(mape_list)))
     print('mse:{}'.format(mean_squared_error(label_list,preds_list)))

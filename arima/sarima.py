@@ -78,9 +78,9 @@ def grid_search(data, cfg_list, n_test, parallel=False):
 def sarima_config():
 	# 造出自己预估的所有参数组合list
 	cfg_list = []
-	p_params = [0, 1, 2,3,4]
-	d_params = [0,1,2]
-	q_params = [0, 1, 2,3,4]
+	p_params = [0, 1, 2,3,4,5,6,7]
+	d_params = [0]
+	q_params = [0, 1, 2,3,4,5,6,7]
 
 	for p in p_params:
 		for d in d_params:
@@ -113,31 +113,27 @@ if __name__ == '__main__':
 	# data = df.loc[start:end]['down_v6_average'].values
 	# data = df['down_v4_average'].values
 	area = 'su'
-	df = pd.read_csv(r'D:\更新的代码\data\{}普通用户情感分析.csv'.format(area))
-	print(df.head)
-	flage = False
-	for index,rows in df.iterrows():
-		# if rows['Unnamed: 0'] == '2020-01-20 08:00:00':
-		# 	start = index
-		# if rows['Unnamed: 0'] == '2020-08-31 08:00:00':
-		# 	end = index
-		# 	break
-		if rows['Unnamed: 0'] == '2020-03-01':
+	df = pd.read_csv(r'../data/new_{}_lda_senti.csv'.format(area))
+
+
+	start_time = '2021-03-01'
+	end_time = '2021-11-01'
+	for index, rows in df.iterrows():
+		if rows['Unnamed: 0'] == '{}'.format(start_time):
 			start = index
-			flage = True
 
-		if flage:
-			if rows['total_sum'] <= 5:
-				rows['average_score'] = df.loc[index - 1]['average_score']
+		if rows['Unnamed: 0'] == '{}'.format(end_time):
+			end = index
+			break
 
+	df = df.loc[start:end]
+	for index, rows in df.iterrows():
+		if rows['total_sum'] <= 5:
+			df = df.drop(index=index)
 
-			# break
-		# if rows['Unnamed: 0'] == '2021-01-22 08:00:00':
-		# 	end = index
-		# 	break
-	data = df.loc[start:]['average_score'].values
-	# for i in range(10):
-	# 	print(adfuller(np.diff(np.diff(data,n=i))))
+	data = df.loc[:,'average_score'].values
+	for i in range(10):
+		print(adfuller(np.diff(np.diff(data,n=i))))
 	test_slice = int(len(data)*0.9)+1
 	valid_slice = int(len(data)*0.8)
 
@@ -171,6 +167,7 @@ if __name__ == '__main__':
 	# train, valid,test = regular_data[:valid_slice], regular_data[valid_slice:test_slice], data[test_slice:]
 	train, valid, test = data[:valid_slice], data[valid_slice:test_slice], data[test_slice:]
 	print(len(train))
+	print(len(valid))
 	print(len(test))
 	history = [i for i in train]
 	# print(history)
@@ -178,7 +175,11 @@ if __name__ == '__main__':
 	# print(history)
 	# order, sorder, trend = [(2, 1, 1), (0, 0, 0, 7), 'ct']
 
-	order = (3,0,2)
+	order = (2, 1, 1)  # sui
+	# order = (3,0,2)# su
+	# order = (0, 1, 1) # yue
+	# order = (4, 1, 0)  # bei
+	# order = (4, 0, 3)  # xi
 	model = ARIMA(history,order=order)
 	model_fit = model.fit()
 

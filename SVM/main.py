@@ -3,11 +3,18 @@ import random
 import numpy as np
 import os
 import pandas as pd
-from Getdata import sentiment_series
+from Getdata import sentiment_series,variable_series
 from pandas import Series
 from sklearn.model_selection import GridSearchCV
 from sklearn.metrics import mean_squared_error , mean_absolute_error
 import matplotlib.pyplot as plt
+import torch
+
+
+def del_tensor_ele(arr,index):
+    arr1 = arr[:,:,0:index]
+    arr2 = arr[:,:,index+1:]
+    return torch.cat((arr1,arr2),dim=2)
 
 class AverageMeter(object):
     """Record metrics information"""
@@ -54,7 +61,7 @@ if __name__ == '__main__':
     os.environ['PYTHONHASHSEED'] = str(seed_value)  # 为了禁止hash随机化，使得实验可复现。
 
     # <准备数据
-    area = 'su'
+    area = 'sui'
     df = pd.read_csv(r'D:\更新的代码\data\{}普通用户情感分析.csv'.format(area))
     flage = False
     for index, rows in df.iterrows():
@@ -76,9 +83,16 @@ if __name__ == '__main__':
     # 	end = index
     # 	break
     data_all = df.loc[start:]['average_score'].values
-    data_dif = difference(data_all).values
-    train_data, train_label, valid_data, valid_label, test_data, test_label = sentiment_series(data_dif, 5)
-    train_data, train_label, valid_data, valid_label, test_data, test_label = train_data.squeeze().numpy().tolist(), train_label.numpy().tolist(), valid_data.squeeze().numpy().tolist(), valid_label.numpy().tolist(), test_data.squeeze().numpy().tolist(), test_label.numpy().tolist()
+    # data_dif = difference(data_all).values
+    # train_data, train_label, valid_data, valid_label, test_data, test_label = sentiment_series(data_dif, 5)
+    start_time = '2021-03-01'
+    end_time = '2021-11-01'
+    time_step = 7
+    need_timeinter = False
+    train_data, train_label, valid_data, valid_label, test_data, test_label = variable_series(time_step, area,
+                                                                                              start_time, end_time, need_timeinter)
+
+    train_data, train_label, valid_data, valid_label, test_data, test_label = train_data.reshape(train_data.shape[0],-1).squeeze().numpy().tolist(), train_label.numpy().tolist(), valid_data.reshape(valid_data.shape[0],-1).squeeze().numpy().tolist(), valid_label.numpy().tolist(), test_data.reshape(test_data.shape[0],-1).squeeze().numpy().tolist(), test_label.numpy().tolist()
     train_data, train_label = train_data+valid_data, train_label+valid_label
 
     parameters = {'kernel': ['rbf'], 'gamma': np.logspace(-5, 0, num=6, base=2.0),
@@ -94,8 +108,8 @@ if __name__ == '__main__':
     y_hat = grid_search.predict(test_data)
 
 
-    y_hat = [inverse_difference(data_all,y_hat[i],len(y_hat) + 1 - i) for i in range(len(y_hat))]
-    test_label = [inverse_difference(data_all,test_label[i],len(y_hat) + 1 - i) for i in range(len(test_label))]
+    # y_hat = [inverse_difference(data_all,y_hat[i],len(y_hat) + 1 - i) for i in range(len(y_hat))]
+    # test_label = [inverse_difference(data_all,test_label[i],len(y_hat) + 1 - i) for i in range(len(test_label))]
     evaluate_model(y_hat, test_label)
     plt.plot(y_hat)
     plt.plot(test_label)
