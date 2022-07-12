@@ -60,7 +60,7 @@ def variable_series(time_step,area,start_time,end_time,need_timeinter=False):
         df_liwc.loc[index, 'Filename'] = rows['Filename'][:-4]
 
     df_liwc = df_liwc.loc[start:end]
-    print(df_liwc)
+    # print(df_liwc)
     df = pd.read_csv(r'../data/new_{}_lda_senti.csv'.format(area))
     flage = False
     for index, rows in df.iterrows():
@@ -72,11 +72,11 @@ def variable_series(time_step,area,start_time,end_time,need_timeinter=False):
             break
 
     df = df.loc[start:end]
-    print(df)
-    print(df.shape)
+    # print(df)
+    # print(df.shape)
     df = pd.merge(df, df_liwc, how='left',left_on='Unnamed: 0',right_on='Filename')
 
-    print(df.shape)
+    # print(df.shape)
     for index, rows in df.iterrows():
         if rows['total_sum'] <= 5:
             df = df.drop(index=index)

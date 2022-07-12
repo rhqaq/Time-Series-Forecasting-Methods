@@ -78,22 +78,26 @@ if __name__ == '__main__':
     print(model)
     params = {}
     best_mse_of_all = float("inf")
+
+    need_timeinter = True
+    start_time = '2021-03-01'
+    end_time = '2021-11-01'
+
+    input_size = 30
     # 准备数据>
-    for hidden_size in [50,100,200]:
-    # for hidden_size in [5]:
-        for lr in [0.1,0.01,0.001]:
-        # for lr in [0.1]:
-            for time_step in [7]:
+    for time_step in [7]:
+        train_data, train_label, valid_data, valid_label, test_data, test_label = variable_series(time_step, area,
+                                                                                                  start_time, end_time,
+                                                                                                  need_timeinter)
+        for hidden_size in [50,100,200]:
+        # for hidden_size in [5]:
+            for lr in [0.1,0.01,0.001]:
+            # for lr in [0.1]:
+
             # for time_step in [2]:
                 for batch_size in tqdm([1,2,4,8]):
                 # for batch_size in tqdm([1]):
-                    need_timeinter = True
-                    start_time = '2021-03-01'
-                    end_time = '2021-11-01'
-                    train_data, train_label, valid_data, valid_label, test_data, test_label = variable_series(time_step, area,
-                                                                                                              start_time, end_time,
-                                                                                                              need_timeinter)
-                    input_size = 30
+
                     if args['model']=='lstm':
                         net = Simple_LSTM(input_size,hidden_size) #LSTM
                     elif args['model']=='tlstm':
