@@ -9,12 +9,17 @@ from torch.utils.data import TensorDataset
 from torch.utils.data import DataLoader
 import random
 from torch import optim
-from Models import TimeLSTM, MLP,Simple_LSTM
-from sklearn.metrics import mean_squared_error , mean_absolute_error
+from Models import LSTM, MLP,Simple_LSTM,TimeLSTM
+from sklearn.metrics import mean_squared_error , mean_absolute_error,mean_absolute_percentage_error
 import torch.nn as nn
 import pandas as pd
-from Getdata import sentiment_series
+from Getdata import sentiment_series,variable_series,del_tensor_ele
 import matplotlib.pyplot as plt
+import json
+
+parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument('-area', '--area', type=str, default='sui')
+parser.add_argument('-ml', '--model', type=str, default='lstm')
 
 class AverageMeter(object):
     """Record metrics information"""
@@ -58,50 +63,48 @@ if __name__ == '__main__':
     torch.cuda.manual_seed(seed_value)  # 为当前GPU设置随机种子（只用一块GPU）
     torch.cuda.manual_seed_all(seed_value)  # 为所有GPU设置随机种子（多块GPU）
 
+    args = parser.parse_args()
+    args = args.__dict__
+
     os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     dev = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    print(torch.cuda.is_available())
     torch.backends.cudnn.deterministic = True
 
     # <准备数据
-    area = 'sui'
-    df = pd.read_csv(r'D:\更新的代码\data\{}普通用户情感分析.csv'.format(area))
-    flage = False
-    for index, rows in df.iterrows():
-        # if rows['Unnamed: 0'] == '2020-01-20 08:00:00':
-        # 	start = index
-        # if rows['Unnamed: 0'] == '2020-08-31 08:00:00':
-        # 	end = index
-        # 	break
-        if rows['Unnamed: 0'] == '2020-03-01':
-            start = index
-            flage = True
-
-        if flage:
-            if rows['total_sum'] <=5:
-                rows['average_score'] = df.loc[index-1]['average_score']
-            print(rows['Unnamed: 0'])
-
-    # if rows['Unnamed: 0'] == '2021-01-22 08:00:00':
-    # 	end = index
-    # 	break
-    data_all = df.loc[start:]['average_score'].values
-    data_dif = difference(data_all).values
+    area = args['area']
+    print(area)
 
     params = {}
     best_mse_of_all = float("inf")
     # 准备数据>
-    for hidden_size in [5,10,20,40,80]:
-        for lr in [0.1,0.01,0.001,0.0001]:
-            for time_step in [2,3,4,5,6,7]:
+    for hidden_size in [50,100,200]:
+    # for hidden_size in [5]:
+        for lr in [0.1,0.01,0.001]:
+        # for lr in [0.1]:
+            for time_step in [7]:
+            # for time_step in [2]:
                 for batch_size in tqdm([1,2,4,8]):
-                    net = TimeLSTM(time_step, hidden_size, 1,True)
+                # for batch_size in tqdm([1]):
+                    need_timeinter = True
+                    start_time = '2021-03-01'
+                    end_time = '2021-11-01'
+                    train_data, train_label, valid_data, valid_label, test_data, test_label = variable_series(time_step, area,
+                                                                                                              start_time, end_time,
+                                                                                                              need_timeinter)
+                    input_size = 30
+                    if args['model']=='lstm':
+                        net = Simple_LSTM(input_size,hidden_size) #LSTM
+                    elif args['model']=='tlstm':
+                        net = TimeLSTM(input_size, hidden_size, 1, torch.cuda.is_available())
                     net = net.to(dev)
 
                     loss_func = nn.MSELoss()
                     opti = optim.Adam(net.parameters(), lr=lr, weight_decay=1e-8)
                     epoch_num = 1000
 
-                    train_data,train_label,valid_data,valid_label,test_data,test_label = sentiment_series(data_dif,time_step)
+
+                    # train_data,train_label,valid_data,valid_label,test_data,test_label = variable_series(data_dif,time_step)
                     # print(train_data.shape)
                     # print(valid_data.shape)
                     # print(test_data.shape)
@@ -113,15 +116,15 @@ if __name__ == '__main__':
                     test_data_loader = DataLoader(TensorDataset(test_data, test_label), batch_size=512, shuffle=False)
                     best_mse = float("inf")
 
-                    time_interval = np.array([[1] for i in range(batch_size)])
-                    # print(time_interval.shape)
-                    time_interval = torch.from_numpy(time_interval)
+
                     for i in range(epoch_num):
                         net.train()
                         loss_ = AverageMeter()
                         acc_ = AverageMeter()
                         for data, label in train_data_loader:
                             data, label = data.to(dev), label.to(dev)
+                            time_interval = data[:, :, 13]
+                            data = del_tensor_ele(data, 13)
                             preds = net(data,time_interval)
                             # print(preds.size())
                             # print(label.size())
@@ -144,7 +147,9 @@ if __name__ == '__main__':
                             for data, label in valid_data_loader:
 
                                 data, label = data.to(dev), label.to(dev)
-                                preds = net(data)
+                                time_interval = data[:, :, 13]
+                                data = del_tensor_ele(data, 13)
+                                preds = net(data,time_interval)
                                 label_list += label.cuda().data.cpu().numpy().tolist()
                                 preds_list += preds.cuda().data.cpu().numpy().tolist()
                             a_s = mean_squared_error(label_list, preds_list)
@@ -173,42 +178,5 @@ if __name__ == '__main__':
 
     print('best params')
     print(params)
-    # test
-    # net.load_state_dict(
-    #     torch.load(os.path.join('D:\时间序列预测\LSTM\savemodel', 'model{}.ckpt'.format(best_epoch))))
-    #
-    # net.eval()
-    # mape_list = []
-    # with torch.no_grad():
-    #     label_list, preds_list, prob = [], [], []
-    #     for data, label in test_data_loader:
-    #         data, label = data.to(dev), label.to(dev)
-    #         preds = net(data).squeeze()
-    #         print(label)
-    #         label_list += label.cuda().data.cpu().numpy().tolist()
-    #         preds_list += preds.cuda().data.cpu().numpy().tolist()
-    #         # mape_list.append((abs((label_list - preds_list) / label_list)))
-    # print(preds_list)
-    # print(label_list)
-    # mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
-    # print('mape:{}'.format(np.mean(mape_list)))
-    # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
-    # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
-    #
-    # # pre1_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
-    # # print('mape:{}'.format(np.mean(mape_list)))
-    # # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
-    # # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
-    # #
-    # # mape_list = [abs((preds_list[i]-label_list[i])/label_list[i]) for i in range(len(label_list))]
-    # # print('mape:{}'.format(np.mean(mape_list)))
-    # # print('mse:{}'.format(mean_squared_error(label_list,preds_list)))
-    # # print('mae:{}'.format(mean_absolute_error(label_list,preds_list)))
-    #
-    # # print(data)
-    # # print(label_list)
-    # label_list = inverse_difference(data_all,label_list)
-    # preds_list = inverse_difference(data_all,preds_list)
-    # plt.plot(label_list)
-    # plt.plot(preds_list)
-    # plt.show()
+    with open('{}_best_params_of_{}'.format(model,area), 'w', encoding='utf-8') as fp:
+        json.dump(params, fp, indent=4, ensure_ascii=False)

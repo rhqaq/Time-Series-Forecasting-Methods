@@ -19,6 +19,7 @@ import json
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('-area', '--area', type=str, default='sui')
+parser.add_argument('-ml', '--model', type=str, default='lstm')
 
 class AverageMeter(object):
     """Record metrics information"""
@@ -72,8 +73,9 @@ if __name__ == '__main__':
 
     # <准备数据
     area = args['area']
+    model = args['model']
     print(area)
-
+    print(model)
     params = {}
     best_mse_of_all = float("inf")
     # 准备数据>
@@ -92,8 +94,10 @@ if __name__ == '__main__':
                                                                                                               start_time, end_time,
                                                                                                               need_timeinter)
                     input_size = 30
-                    net = Simple_LSTM(input_size,hidden_size) #LSTM
-                    net = TimeLSTM(input_size, hidden_size, 1, torch.cuda.is_available())
+                    if args['model']=='lstm':
+                        net = Simple_LSTM(input_size,hidden_size) #LSTM
+                    elif args['model']=='tlstm':
+                        net = TimeLSTM(input_size, hidden_size, 1, torch.cuda.is_available())
                     net = net.to(dev)
 
                     loss_func = nn.MSELoss()
@@ -122,7 +126,10 @@ if __name__ == '__main__':
                             data, label = data.to(dev), label.to(dev)
                             time_interval = data[:, :, 13]
                             data = del_tensor_ele(data, 13)
-                            preds = net(data,time_interval)
+                            if model == 'tlstm':
+                                preds = net(data,time_interval)
+                            else:
+                                preds = net(data)
                             # print(preds.size())
                             # print(label.size())
                             loss = loss_func(preds, label)
@@ -146,7 +153,10 @@ if __name__ == '__main__':
                                 data, label = data.to(dev), label.to(dev)
                                 time_interval = data[:, :, 13]
                                 data = del_tensor_ele(data, 13)
-                                preds = net(data,time_interval)
+                                if model == 'tlstm':
+                                    preds = net(data, time_interval)
+                                else:
+                                    preds = net(data)
                                 label_list += label.cuda().data.cpu().numpy().tolist()
                                 preds_list += preds.cuda().data.cpu().numpy().tolist()
                             a_s = mean_squared_error(label_list, preds_list)
@@ -175,5 +185,5 @@ if __name__ == '__main__':
 
     print('best params')
     print(params)
-    with open('best_params_of_{}'.format(area), 'w', encoding='utf-8') as fp:
+    with open('{}_best_params_of_{}'.format(model,area), 'w', encoding='utf-8') as fp:
         json.dump(params, fp, indent=4, ensure_ascii=False)
